@@ -360,39 +360,6 @@ function render(){
         const lbl=unifiedDrag.label.length>24?unifiedDrag.label.slice(0,22)+"…":unifiedDrag.label;
         const icon=unifiedDrag.icon||"📄";
         const dark=currentTheme==="dark";
-
-        // ── Drop-target highlight ─────────────────────────────────────────
-        const tw2=winAt(dx,dy);
-        if(tw2&&tw2.title&&tw2.title.startsWith("Files")){
-            const lx2=dx-tw2.x,ly2=dy-tw2.y;
-            const SB2=120,HDR2=36,ROW2=28,STA2=24,rowStart2=HDR2+22;
-            if(lx2>=SB2&&ly2>=rowStart2&&ly2<tw2.height-STA2){
-                const vi2=Math.floor((ly2-rowStart2)/ROW2);
-                const rowAbsY=tw2.y+rowStart2+vi2*ROW2-2;
-                // Check if the row is a folder by reading the windows array
-                // (we highlight blue only when dropping onto a folder row)
-                const dark2=currentTheme==="dark";
-                ctx.save();
-                ctx.globalAlpha=0.18;
-                ctx.fillStyle=L.blue;
-                ctx.fillRect(tw2.x+SB2+1,rowAbsY,tw2.width-SB2-2,ROW2);
-                ctx.globalAlpha=0.6;
-                ctx.strokeStyle=L.blue;ctx.lineWidth=1.5;
-                ctx.strokeRect(tw2.x+SB2+1,rowAbsY,tw2.width-SB2-2,ROW2);
-                ctx.restore();
-            } else {
-                // Hovering over FE header/sidebar → highlight whole window border
-                const o2=outer(tw2);ctx.save();ctx.strokeStyle=L.blue;ctx.lineWidth=2;ctx.globalAlpha=0.45;
-                ctx.strokeRect(o2.x,o2.y,o2.w,o2.h);ctx.restore();
-            }
-        } else if(!tw2||tw2.title==="__desktop__"){
-            // Drop target is desktop — draw subtle indicator
-            const dark2=currentTheme==="dark";
-            ctx.save();ctx.strokeStyle=L.blue;ctx.lineWidth=2;ctx.globalAlpha=0.2;
-            ctx.strokeRect(2,2,displayW-4,displayH-4);
-            ctx.restore();
-        }
-
         ctx.save();ctx.globalAlpha=0.92;
         // Shadow
         ctx.shadowColor="rgba(0,0,0,0.3)";ctx.shadowBlur=12;ctx.shadowOffsetY=3;
@@ -401,13 +368,17 @@ function render(){
         ctx.shadowColor="transparent";
         ctx.strokeStyle=L.blue;ctx.lineWidth=1;ctx.stroke();
         // Icon + label
-        const multiCount=unifiedDrag.kind==="desktop"&&unifiedDrag.selectedCount>1?` (×${unifiedDrag.selectedCount})`:
-                          unifiedDrag.kind==="fe"&&unifiedDrag.feSelCount>1?` (×${unifiedDrag.feSelCount})`:"";
         ctx.font="14px sans-serif";ctx.textAlign="left";ctx.textBaseline="middle";ctx.fillText(icon,dx-56,dy);
         ctx.font=F(12,400);ctx.fillStyle=dark?"#c8c8dd":L.blue;
-        ctx.fillText(lbl+multiCount,dx-38,dy);
+        ctx.fillText(lbl,dx-38,dy);
         ctx.textAlign="left";ctx.textBaseline="alphabetic";
         ctx.restore();
+        // Drop target highlight
+        const tw=winAt(dx,dy);
+        if(tw&&tw.title&&tw.title.startsWith("Files")){
+            const o=outer(tw);ctx.save();ctx.strokeStyle=L.blue;ctx.lineWidth=2;ctx.globalAlpha=0.5;
+            ctx.strokeRect(o.x,o.y,o.w,o.h);ctx.restore();
+        }
     }
     if(ctxMenu) drawCtxMenu();
     if(launcherOpen) drawLauncher();
@@ -1038,7 +1009,6 @@ window.alphaOS.onKernelEvent(data=>{
             if(unifiedDrag&&unifiedDrag.kind==="fe"&&unifiedDrag.srcWinId===data.winId){
                 if(data.name){
                     unifiedDrag.label=data.name;
-                    if(data.selCount) unifiedDrag.feSelCount=data.selCount;
                 } else {
                     // Empty row — cancel drag
                     unifiedDrag=null;
@@ -1050,7 +1020,6 @@ window.alphaOS.onKernelEvent(data=>{
             if(unifiedDrag&&unifiedDrag.kind==="desktop"&&data.name){
                 unifiedDrag.label=data.name;
                 if(data.icon) unifiedDrag.icon=data.icon;
-                if(data.selCount) unifiedDrag.selectedCount=data.selCount;
             }
             break;
         }
@@ -1269,41 +1238,37 @@ canvasWrap.addEventListener("mousedown",e=>{
             const o=outer(win);
             if(my>=o.y&&my<o.y+TITLE_H+BORDER&&win.state!=="MAXIMIZED"){drag={winId:win.id,offX:mx-win.x,offY:my-win.y};return;}
         }
-        window.alphaOS.sendEvent({type:"input_event",event:{type:"mousedown",timestamp:Date.now(),data:{x:Math.round(mx),y:Math.round(my),button:e.button,buttons:e.buttons,ctrl:e.ctrlKey,shift:e.shiftKey}}});
+        window.alphaOS.sendEvent({type:"input_event",event:{type:"mousedown",timestamp:Date.now(),data:{x:Math.round(mx),y:Math.round(my),button:e.button,buttons:e.buttons}}});
         // FE drag: start tracking on file row click
         if(e.button===0&&win.title&&win.title.startsWith("Files")){
             const SB=120,HDR=36,ROW=28,STA=24;
             const lx=mx-win.x,ly=my-win.y;
             if(lx>=SB&&ly>=HDR+22&&ly<win.height-STA){
                 const vi=Math.floor((ly-(HDR+22))/ROW);
-                // Count FE selected items from kernel state (will be updated via fe_drag_info)
+                // Always start drag — kernel will resolve label via fe_drag_info
                 unifiedDrag={kind:"fe",srcWinId:win.id,entryIdx:vi,srcPath:"",
-                    label:"…",icon:"📄",startX:mx,startY:my,curX:mx,curY:my,active:false,feSelCount:1};
+                    label:"…",icon:"📄",startX:mx,startY:my,curX:mx,curY:my,active:false};
+                // Request real label from kernel asynchronously
                 window.alphaOS.sendEvent({type:"fe_drag_info",winId:win.id,entryIdx:vi});
             }
         }        return;
     }
-    // Desktop area — select/drag desktop file icons
+    // Desktop area — drag desktop file icons
     if(e.button===0){
         const dw=windows.find(w=>w.title==="__desktop__");
         if(dw){
             const PAD=16,IW=72,IH=72,SLOT=100;
-            let hitIdx=-1;
+            // Calculate which slot was clicked (same grid as renderDesktop)
             for(let i=0;i<20;i++){
                 const col=Math.floor(i/8),row=i%8;
                 const ix=PAD+col*(IW+20),iy=PAD+row*SLOT;
-                if(mx>=ix&&mx<=ix+IW&&my>=iy&&my<=iy+IH+20){hitIdx=i;break;}
-            }
-            if(hitIdx>=0){
-                // Always send select (handles ctrl/shift and single→open logic)
-                window.alphaOS.sendEvent({type:"desktop_select",x:Math.round(mx),y:Math.round(my),ctrl:e.ctrlKey,shift:e.shiftKey});
-                // Also start drag tracking
-                unifiedDrag={kind:"desktop",srcWinId:-1,entryIdx:hitIdx,srcPath:"",
-                    label:"…",icon:"📄",startX:mx,startY:my,curX:mx,curY:my,active:false,iconIdx:hitIdx,selectedCount:1};
-                window.alphaOS.sendEvent({type:"desktop_drag_info",entryIdx:hitIdx});
-            } else {
-                // Click on empty desktop area → clear selection
-                window.alphaOS.sendEvent({type:"desktop_select",x:Math.round(mx),y:Math.round(my),ctrl:e.ctrlKey,shift:e.shiftKey});
+                if(mx>=ix&&mx<=ix+IW&&my>=iy&&my<=iy+IH+20){
+                    // Request real filename from kernel - entryIdx=i
+                    unifiedDrag={kind:"desktop",srcWinId:-1,entryIdx:i,srcPath:"",
+                        label:"…",icon:"📄",startX:mx,startY:my,curX:mx,curY:my,active:false,iconIdx:i};
+                    window.alphaOS.sendEvent({type:"desktop_drag_info",entryIdx:i});
+                    break;
+                }
             }
         }
     }
@@ -1371,14 +1336,12 @@ canvasWrap.addEventListener("mouseup",e=>{
                     srcKind:unifiedDrag.kind, srcWinId:unifiedDrag.srcWinId,
                     srcIdx:unifiedDrag.entryIdx, srcPath:unifiedDrag.srcPath,
                     toWinId:dropWin.id, dropRowVi:vi});
-            } else if(!dropWin||dropWin.title==="__desktop__"){
-                // Drop onto desktop background
+            } else if(!dropWin){
                 window.alphaOS.sendEvent({type:"unified_drop",
                     srcKind:unifiedDrag.kind, srcWinId:unifiedDrag.srcWinId,
                     srcIdx:unifiedDrag.entryIdx, srcPath:unifiedDrag.srcPath,
                     toWinId:-1, dropRowVi:-1});
             }
-            // else: drop on non-FE window → ignore
         }
         unifiedDrag=null;canvasWrap.style.cursor="none";return;
     }
@@ -1388,21 +1351,15 @@ canvasWrap.addEventListener("mouseup",e=>{
 
 canvasWrap.addEventListener("dblclick",e=>{
     updateMouse(e);const mx=cMouseX,my=cMouseY;
-    // Desktop icon double-click → open (via desktop_select with dbl flag)
-    if(!winAt(mx,my)){
-        window.alphaOS.sendEvent({type:"desktop_dblclick",x:Math.round(mx),y:Math.round(my)});
-        return;
+    const icon=desktopIconAt(mx,my);
+    if(icon&&icon.appId){
+        sendAppEvent(icon.appId);return;
+    }
+    if(icon&&icon.isDesktopFile){
+        window.alphaOS.sendEvent({type:"desktop_click",x:Math.round(mx),y:Math.round(my),dbl:true});return;
     }
     const win=winAt(mx,my);if(!win||win.decorations===false)return;
-    const o=outer(win);
-    // Title bar double-click → maximize
-    if(my>=o.y&&my<o.y+TITLE_H+BORDER){window.alphaOS.sendEvent({type:"win_maximize",id:win.id});return;}
-    // FE content double-click → open item
-    if(win.title&&win.title.startsWith("Files")){
-        const lx=mx-win.x,ly=my-win.y;
-        window.alphaOS.sendEvent({type:"input_event",event:{type:"mousedown",timestamp:Date.now(),
-            data:{x:Math.round(lx),y:Math.round(ly),button:0,buttons:1,ctrl:false,shift:false,dbl:true}}});
-    }
+    const o=outer(win);if(my>=o.y&&my<o.y+TITLE_H+BORDER)window.alphaOS.sendEvent({type:"win_maximize",id:win.id});
 });
 
 canvasWrap.addEventListener("wheel",e=>{
@@ -1472,11 +1429,6 @@ canvasWrap.addEventListener("keydown",e=>{
         return;
     }
     if(_launcherKey(e))return;
-    // Delete key: if no window focused but desktop visible, delete selected desktop items
-    if((e.key==="Delete"||e.key==="Backspace")&&!focusedId){
-        window.alphaOS.sendEvent({type:"desktop_delete_selected"});
-        return;
-    }
     window.alphaOS.sendEvent({type:"input_event",event:{type:"keydown",timestamp:Date.now(),data:{key:e.key,code:e.code,ctrl:e.ctrlKey,shift:e.shiftKey,alt:e.altKey,meta:e.metaKey,repeat:e.repeat}}});
 });
 canvasWrap.addEventListener("keyup",e=>{

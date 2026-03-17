@@ -108,18 +108,6 @@ function setupIPC() {
                     kernel.appManager.handleDesktopClick(msg.x, msg.y, msg.dbl || false);
                     break;
 
-                case "desktop_dblclick":
-                    kernel.appManager.handleDesktopClick(msg.x, msg.y, true);
-                    break;
-
-                case "desktop_select":
-                    kernel.appManager.handleDesktopSelect(msg.x, msg.y, msg.ctrl || false, msg.shift || false);
-                    break;
-
-                case "desktop_delete_selected":
-                    kernel.appManager.deleteDesktopSelected();
-                    break;
-
                 // ── Desktop context menu ─────────────────────────────────────
                 case "desktop_context_menu": {
                     const items = kernel.appManager.desktopBuildContextMenu(msg.x, msg.y);
@@ -144,36 +132,28 @@ function setupIPC() {
                 // ── Drag & drop ──────────────────────────────────────────────
                 case "fe_drag_info": {
                     const st = kernel.appManager.feState.get(msg.winId);
-                    let name = "", selCount = 1;
+                    let name = "";
                     if (st) {
                         try {
                             const ents = kernel.vfs.readdir(st.path)
                                 .filter(e => e.name !== "." && e.name !== "..");
                             const all = [...ents.filter(e=>e.type==="DIRECTORY"), ...ents.filter(e=>e.type!=="DIRECTORY")];
-                            const absIdx = msg.entryIdx + (st.scroll||0);
-                            const entry = all[absIdx];
+                            const entry = all[msg.entryIdx + (st.scroll||0)];
                             if (entry) name = entry.name;
-                            // If the dragged item is in the selectedSet, report full count
-                            if (st.selectedSet && st.selectedSet.has(absIdx) && st.selectedSet.size > 1) {
-                                selCount = st.selectedSet.size;
-                            }
                         } catch {/**/}
                     }
-                    safeSend("kernel-event", { type:"fe_drag_info_result", name, selCount, winId:msg.winId, entryIdx:msg.entryIdx });
+                    safeSend("kernel-event", { type:"fe_drag_info_result", name, winId:msg.winId, entryIdx:msg.entryIdx });
                     break;
                 }
                 case "desktop_drag_info": {
-                    let name = "", icon = "📄", selCount = 1;
+                    let name = "", icon = "📄";
                     try {
                         const ents = kernel.vfs.readdir("/home/user/Desktop")
                             .filter(e => e.name !== "." && e.name !== "..");
                         const entry = ents[msg.entryIdx];
                         if (entry) { name = entry.name; icon = entry.type === "DIRECTORY" ? "📁" : "📄"; }
-                        // Report count of desktop selected items
-                        const deskSel = kernel.appManager.desktop && kernel.appManager.desktop["selectedSet"];
-                        if (deskSel && deskSel.size > 1) selCount = deskSel.size;
                     } catch {/**/}
-                    safeSend("kernel-event", { type:"desktop_drag_info_result", name, icon, selCount, entryIdx:msg.entryIdx });
+                    safeSend("kernel-event", { type:"desktop_drag_info_result", name, icon, entryIdx:msg.entryIdx });
                     break;
                 }
                 case "unified_drop":

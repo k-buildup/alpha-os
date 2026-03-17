@@ -155,8 +155,6 @@ export interface MouseEventData {
     buttons: number;
     deltaX?: number;
     deltaY?: number;
-    ctrl?: boolean;
-    shift?: boolean;
 }
 
 export interface InputEvent {

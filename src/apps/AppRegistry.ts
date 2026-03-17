@@ -132,14 +132,6 @@ export class AppRegistry {
         this.desktop.handleClick(x, y);
     }
 
-    handleDesktopSelect(x: number, y: number, ctrl: boolean, shift: boolean): void {
-        this.desktop.handleSelect(x, y, ctrl, shift);
-    }
-
-    deleteDesktopSelected(): void {
-        this.desktop.deleteSelected();
-    }
-
     desktopBuildContextMenu(x: number, y: number) {
         return this.desktop.buildContextMenu(x, y);
     }
@@ -166,20 +158,7 @@ export class AppRegistry {
         srcKind: "fe" | "desktop"; srcWinId: number; srcIdx: number;
         srcPath: string; toWinId: number; dropRowVi: number;
     }): void {
-        // For desktop drag: collect which items are selected so FE can move all of them
-        const desktopSelectedIndices: number[] | undefined =
-            msg.srcKind === "desktop"
-                ? [...(this.desktop["selectedSet"] as Set<number>)]
-                : undefined;
-
-        this.fileExplorer.unifiedDrop({ ...msg, desktopSelectedIndices });
-
-        // Re-render desktop if it was involved
-        if (msg.srcKind === "desktop" || msg.toWinId === -1) {
-            this.desktop.clearSelection();
-            const did = this.desktop["winId"] as number;
-            if (did >= 0) this.desktop.render(did);
-        }
+        this.fileExplorer.unifiedDrop(msg);
     }
 
     // ─── Editor wiring ───────────────────────────────────────────────────────
