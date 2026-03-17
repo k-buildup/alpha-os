@@ -1,0 +1,27 @@
+{
+    "name": "alpha-os",
+    "version": "0.1.0",
+    "description": "TypeScript Operating System Framework",
+    "main": "simulator/main.js",
+    "scripts": {
+        "build":       "tsc --project tsconfig.json",
+        "build:watch": "tsc --project tsconfig.json --watch",
+        "sim":         "npm run build && electron .",
+        "start":       "npm run sim",
+        "build:iso":   "bash scripts/build-iso.sh",
+        "qemu":        "bash scripts/run-qemu.sh",
+        "clean":       "rm -rf dist iso/rootfs iso/output.iso"
+    },
+    "dependencies": {
+        "electron": "^33.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@typescript/native-preview": "^7.0.0-dev.20260315.1",
+        "@typescript-eslint/eslint-plugin": "^8.0.0",
+        "@typescript-eslint/parser": "^8.0.0",
+        "eslint": "^9.0.0",
+        "prettier": "^3.0.0",
+        "typescript": "^5.6.0"
+    }
+}

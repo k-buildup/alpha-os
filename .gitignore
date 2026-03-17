@@ -1,0 +1,10 @@
+node_modules/
+dist/
+iso/bin/
+iso/rootfs/
+iso/output.iso
+iso/esp/
+/tmp/
+*.d.ts.map
+.DS_Store
+Thumbs.db

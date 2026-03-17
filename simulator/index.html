@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self';script-src 'self' 'unsafe-inline';style-src 'self' 'unsafe-inline';font-src 'self'"/>
+<title>AlphaOS</title>
+<style>
+@font-face{font-family:'FiraCode';src:url('fonts/FiraCode-Medium.ttf') format('truetype');font-weight:500;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-Thin.otf') format('opentype');font-weight:100;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-ExtraLight.otf') format('opentype');font-weight:200;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-Light.otf') format('opentype');font-weight:300;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-Regular.otf') format('opentype');font-weight:400;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-Medium.otf') format('opentype');font-weight:500;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-SemiBold.otf') format('opentype');font-weight:600;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-Bold.otf') format('opentype');font-weight:700;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-ExtraBold.otf') format('opentype');font-weight:800;}
+@font-face{font-family:'A2G';src:url('fonts/A2G-Black.otf') format('opentype');font-weight:900;}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+    --bg:#ffffff;--surface:#fafafa;--border:#e4e4e7;--border2:#d4d4d8;
+    --muted:#f4f4f5;--text:#09090b;--text2:#3f3f46;--text3:#a1a1aa;
+    --accent:#18181b;--blue:#3b82f6;--red:#ef4444;--grn:#22c55e;--ylw:#eab308;
+    --font:'A2G',system-ui,-apple-system,sans-serif;
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);
+    font-family:var(--font);overflow:hidden;user-select:none;font-size:13px;line-height:1.4;}
+
+/* ── Electron titlebar ───────────────────────────────────────────────── */
+#titlebar{
+    -webkit-app-region:drag;height:28px;
+    display:flex;align-items:center;padding:0 12px;gap:8px;
+    background:var(--surface);border-bottom:1px solid var(--border);
+    font-size:11px;color:var(--text3);font-family:var(--font);
+}
+.no-drag{-webkit-app-region:no-drag;}
+.dots{display:flex;gap:6px;}
+.dot{width:12px;height:12px;border-radius:50%;cursor:pointer;transition:filter .15s;}
+.dot:hover{filter:brightness(.8);}
+.dot.close{background:var(--red);}
+.dot.min  {background:var(--ylw);}
+.dot.max  {background:var(--grn);}
+#title-txt{flex:1;text-align:center;font-size:11px;color:var(--text2);}
+#fps-badge{font-size:10px;color:var(--text3);font-family:monospace;}
+
+/* ── Main layout ─────────────────────────────────────────────────────── */
+#layout{
+    display:grid;
+    grid-template-columns:1fr 252px;
+    grid-template-rows:calc(100vh - 28px - 144px) 144px;
+    height:calc(100vh - 28px);
+}
+
+/* ── Canvas area ──────────────────────────────────────────────────────── */
+#canvas-wrap{
+    grid-row:1;grid-column:1;
+    position:relative;overflow:hidden;background:#f4f4f5;
+    outline:none;cursor:none!important;
+}
+#canvas-wrap *{cursor:none!important;}
+#screen{display:block;width:100%;height:100%;}
+
+/* ── Boot splash ─────────────────────────────────────────────────────── */
+#boot-splash{
+    position:absolute;inset:0;background:var(--bg);z-index:100;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    transition:opacity .4s ease;
+}
+.boot-logo{font-size:22px;font-weight:700;letter-spacing:.04em;color:var(--text);font-family:var(--font);}
+.boot-sub{font-size:11px;color:var(--text3);font-family:var(--font);}
+.bar-track{width:180px;height:1px;background:var(--border2);}
+.bar-fill{height:100%;width:0%;background:var(--text2);transition:width .25s;}
+
+/* ── Side panel ──────────────────────────────────────────────────────── */
+#side-panel{
+    grid-row:1;grid-column:2;
+    background:var(--surface);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden;
+}
+.panel-lbl{
+    padding:7px 14px 5px;font-size:9px;font-weight:600;font-family:var(--font);
+    text-transform:uppercase;letter-spacing:.12em;color:var(--text3);
+    border-bottom:1px solid var(--border);
+}
+#metrics{
+    padding:10px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;
+    border-bottom:1px solid var(--border);
+}
+.metric .lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-family:var(--font);}
+.metric .val{font-size:13px;font-weight:600;color:var(--text);font-family:var(--font);margin-top:2px;}
+#proc-scroll{flex:1;overflow-y:auto;}
+#proc-scroll::-webkit-scrollbar{width:3px;}
+#proc-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.proc-row{display:flex;align-items:center;padding:3px 14px;gap:8px;border-bottom:1px solid rgba(0,0,0,.03);}
+.proc-row:hover{background:var(--muted);}
+.proc-pid{width:24px;color:var(--text3);font-size:11px;font-family:monospace;}
+.proc-name{flex:1;color:var(--text2);font-size:11px;font-family:var(--font);}
+.proc-state{width:60px;font-size:9px;font-weight:600;text-transform:uppercase;font-family:var(--font);}
+.proc-state.RUNNING{color:#16a34a;}
+.proc-state.READY  {color:#ca8a04;}
+.proc-state.BLOCKED,.proc-state.ZOMBIE{color:var(--text3);}
+
+/* ── Log area ────────────────────────────────────────────────────────── */
+#log-area{
+    grid-row:2;grid-column:1/3;
+    background:var(--bg);border-top:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden;
+}
+#log-toolbar{
+    display:flex;align-items:center;padding:5px 12px;gap:5px;
+    background:var(--surface);border-bottom:1px solid var(--border);
+}
+#log-toolbar>span{font-size:9px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.1em;color:var(--text3);margin-right:4px;font-family:var(--font);}
+.log-filter-btn{
+    padding:1px 8px;border-radius:4px;border:1px solid var(--border);
+    background:transparent;color:var(--text3);font-size:10px;cursor:pointer;
+    font-family:var(--font);transition:all .1s;
+}
+.log-filter-btn.active{background:var(--text);color:#fff;border-color:var(--text);}
+.log-filter-btn:hover:not(.active){border-color:var(--text3);color:var(--text2);}
+#log-clear{margin-left:auto;}
+#log-scroll{flex:1;overflow-y:auto;font-family:monospace;font-size:11px;}
+#log-scroll::-webkit-scrollbar{width:3px;}
+#log-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.log-line{display:flex;align-items:baseline;padding:1px 14px;gap:10px;}
+.log-line:hover{background:var(--muted);}
+.log-ts{color:var(--text3);font-size:10px;min-width:58px;}
+.log-lvl{font-size:9px;font-weight:700;min-width:36px;text-transform:uppercase;}
+.log-lvl.info {color:var(--text3);}
+.log-lvl.warn {color:var(--ylw);}
+.log-lvl.error{color:var(--red);}
+.log-msg{color:var(--text2);white-space:pre;}
+
+/* ── Panic ───────────────────────────────────────────────────────────── */
+#panic-overlay{
+    display:none;position:fixed;inset:0;
+    background:rgba(255,255,255,.96);backdrop-filter:blur(4px);z-index:999;
+    align-items:center;justify-content:center;flex-direction:column;gap:10px;
+}
+#panic-overlay.visible{display:flex;}
+#panic-overlay h1{font-size:20px;font-weight:700;color:var(--red);font-family:var(--font);}
+#panic-overlay p{font-size:12px;color:var(--text2);font-family:var(--font);}
+</style>
+</head>
+<body>
+<div id="titlebar">
+    <div class="dots no-drag">
+        <div class="dot close" id="btn-close"></div>
+        <div class="dot min"   id="btn-min"></div>
+        <div class="dot max"   id="btn-max"></div>
+    </div>
+    <span id="title-txt">AlphaOS</span>
+    <span class="no-drag" id="fps-badge">-- fps</span>
+</div>
+<div id="layout">
+    <div id="canvas-wrap" tabindex="0">
+        <canvas id="screen"></canvas>
+        <div id="boot-splash">
+            <div class="boot-logo">AlphaOS</div>
+            <div class="boot-sub" id="boot-msg">Starting...</div>
+            <div class="bar-track"><div class="bar-fill" id="boot-bar"></div></div>
+            <div class="boot-sub">v0.1.0</div>
+        </div>
+    </div>
+    <div id="side-panel">
+        <div class="panel-lbl">System</div>
+        <div id="metrics">
+            <div class="metric"><div class="lbl">Uptime</div><div class="val" id="m-uptime">--</div></div>
+            <div class="metric"><div class="lbl">FPS</div><div class="val" id="m-fps">--</div></div>
+            <div class="metric"><div class="lbl">Memory</div><div class="val" id="m-mem">--</div></div>
+            <div class="metric"><div class="lbl">Procs</div><div class="val" id="m-procs">--</div></div>
+            <div class="metric"><div class="lbl">Windows</div><div class="val" id="m-wins">--</div></div>
+        </div>
+        <div class="panel-lbl">Processes</div>
+        <div id="proc-scroll"></div>
+    </div>
+    <div id="log-area">
+        <div id="log-toolbar">
+            <span>Log</span>
+            <button class="log-filter-btn active" data-level="all">ALL</button>
+            <button class="log-filter-btn" data-level="info">INFO</button>
+            <button class="log-filter-btn" data-level="warn">WARN</button>
+            <button class="log-filter-btn" data-level="error">ERR</button>
+            <button class="log-filter-btn" id="log-clear">CLEAR</button>
+        </div>
+        <div id="log-scroll"></div>
+    </div>
+</div>
+<div id="panic-overlay">
+    <h1>Kernel Panic</h1>
+    <p id="panic-msg"></p>
+    <p style="color:var(--text3);font-size:10px;margin-top:4px">Restart the simulator to recover.</p>
+</div>
+<script src="renderer.js"></script>
+</body>
+</html>
